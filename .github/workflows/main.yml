@@ -23,29 +23,33 @@ jobs:
       - name: Extract Android Project
         run: |
           unzip -q "streamix-bd (6).zip" -d extracted
-          echo "Extracted files:"
-          find extracted -maxdepth 3 -type f | head -100
 
       - name: Find Gradle Project
         run: |
           PROJECT_DIR=$(dirname "$(find extracted -name gradlew -type f | head -1)")
-          if [ -z "$PROJECT_DIR" ]; then
-            echo "❌ gradlew not found!"
-            exit 1
-          fi
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-          echo "✅ Project found: $PROJECT_DIR"
+          echo "Project found: $PROJECT_DIR"
 
-      - name: Make gradlew executable
-        run: chmod +x "$PROJECT_DIR/gradlew"
+      - name: Install Gradle from wrapper properties
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          URL=$(grep '^distributionUrl=' gradle/wrapper/gradle-wrapper.properties | cut -d'=' -f2- | sed 's/\\:/:/g')
+          echo "Gradle URL: $URL"
+
+          wget -q "$URL" -O /tmp/gradle.zip
+          unzip -q /tmp/gradle.zip -d /tmp/gradle
+
+          GRADLE_DIR=$(find /tmp/gradle -maxdepth 1 -type d -name 'gradle-*' | head -1)
+          echo "GRADLE_DIR=$GRADLE_DIR" >> "$GITHUB_ENV"
 
       - name: Build Debug APK
         working-directory: ${{ env.PROJECT_DIR }}
-        run: ./gradlew assembleDebug
+        run: |
+          "$GRADLE_DIR/bin/gradle" assembleDebug --stacktrace
 
-      - name: Upload APK
+      - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: Streamix-Bd-APK
-          path: '**/app/build/outputs/apk/debug/*.apk'
+          name: Streamix-Bd-Debug-APK
+          path: '**/build/outputs/apk/debug/*.apk'
           if-no-files-found: error
